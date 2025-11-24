@@ -1,541 +1,200 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Neon Core Defense - Estrategia y Acción</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #050505;
-            color: #fff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            user-select: none;
-        }
-        canvas {
-            display: block;
-        }
-        #ui-layer {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            pointer-events: none;
-        }
-        .stat-box {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px 20px;
-            border-left: 4px solid #00f3ff;
-            margin-bottom: 10px;
-            font-size: 18px;
-            text-shadow: 0 0 5px #00f3ff;
-        }
-        #shop {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(10, 10, 20, 0.95);
-            border: 2px solid #00f3ff;
-            padding: 30px;
-            text-align: center;
-            border-radius: 10px;
-            box-shadow: 0 0 30px rgba(0, 243, 255, 0.2);
-            z-index: 10;
-        }
-        #shop h2 { margin-top: 0; color: #00f3ff; }
-        .upgrade-btn {
-            display: block;
-            width: 100%;
-            margin: 10px 0;
-            padding: 10px;
-            background: #1a1a1a;
-            border: 1px solid #333;
-            color: white;
-            cursor: pointer;
-            transition: 0.2s;
-            font-size: 16px;
-        }
-        .upgrade-btn:hover:not(:disabled) {
-            background: #00f3ff;
-            color: black;
-            box-shadow: 0 0 15px #00f3ff;
-        }
-        .upgrade-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        #start-screen, #game-over-screen {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 20;
-        }
-        h1 { font-size: 50px; color: #00f3ff; text-shadow: 0 0 20px #00f3ff; margin-bottom: 10px; }
-        button.main-btn {
-            padding: 15px 40px;
-            font-size: 24px;
-            background: #ff0055;
-            color: white;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 0 20px #ff0055;
-            border-radius: 5px;
-            font-weight: bold;
-        }
-        button.main-btn:hover { background: #ff3377; transform: scale(1.05); }
-        #shop-hint {
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
-            text-align: center;
-            color: #aaa;
-            font-size: 14px;
-            pointer-events: none;
-        }
-    </style>
-</head>
-<body>
+// --- VARIABLES GLOBALES DEL JUEGO ---
+const REELS_DOM = [
+    document.getElementById('reel-1'),
+    document.getElementById('reel-2'),
+    document.getElementById('reel-3')
+];
+const SALDO_DOM = document.getElementById('saldo-valor');
+const SPIN_BUTTON = document.getElementById('spin-button');
+const MESSAGE_DOM = document.getElementById('message');
+const CLAIM_BUTTON = document.getElementById('claim-idle');
+const IDLE_ACUMULADO_DOM = document.getElementById('idle-acumulado');
 
-    <div id="ui-layer">
-        <div class="stat-box">Puntuación: <span id="score">0</span></div>
-        <div class="stat-box">Dinero: $<span id="money">0</span></div>
-        <div class="stat-box" style="border-color: #ff0055; text-shadow: 0 0 5px #ff0055;">Salud Núcleo: <span id="core-hp">100</span>%</div>
-        <div class="stat-box" style="border-color: #ffe600; text-shadow: 0 0 5px #ffe600;">Oleada: <span id="wave">1</span></div>
-    </div>
+// Símbolos disponibles (usa emojis para simplicidad)
+const SYMBOLS = ['🍒', '🍋', '🔔', '⭐', '7️⃣']; 
 
-    <div id="shop">
-        <h2>TIENDA DE MEJORAS</h2>
-        <p>Dinero disponible: $<span id="shop-money">0</span></p>
-        <button class="upgrade-btn" id="upg-damage" onclick="game.purchase('damage')">Aumentar Daño ($<span id="cost-damage">100</span>)</button>
-        <button class="upgrade-btn" id="upg-firerate" onclick="game.purchase('firerate')">Cadencia de Disparo ($<span id="cost-firerate">150</span>)</button>
-        <button class="upgrade-btn" id="upg-speed" onclick="game.purchase('speed')">Velocidad de Nave ($<span id="cost-speed">80</span>)</button>
-        <button class="upgrade-btn" id="upg-heal" onclick="game.purchase('heal')">Reparar Núcleo 25% ($<span id="cost-heal">200</span>)</button>
-        <button class="main-btn" style="font-size: 18px; margin-top: 15px; background: #00f3ff; color: black; box-shadow: none;" onclick="game.toggleShop()">Cerrar Tienda (ESPACIO)</button>
-    </div>
+// Configuración del Algoritmo (Paytable)
+// RTP es la probabilidad de pago, crucial para la adicción!
+const PAYTABLE = {
+    // 3 x Símbolo, Ganancia:
+    '7️⃣7️⃣7️⃣': 100,
+    '⭐⭐⭐': 50,
+    '🔔🔔🔔': 20,
+    '🍋🍋🍋': 10,
+    '🍒🍒🍒': 5,
+    // 2 x Símbolo, Ganancia (ej. 2 cerezas):
+    '🍒🍒-': 2, 
+    '-🍒🍒': 2,
+    '🍒-🍒': 2 
+    // Más combinaciones pueden ser añadidas
+};
 
-    <div id="start-screen">
-        <h1>NEON CORE DEFENSE</h1>
-        <p style="max-width: 600px; text-align: center; margin-bottom: 30px; font-size: 18px; line-height: 1.5;">
-            Defiende el Núcleo Azul en el centro.<br>
-            Usa <strong>WASD</strong> para moverte y <strong>MOUSE</strong> para apuntar/disparar.<br>
-            Presiona <strong>ESPACIO</strong> para abrir la tienda y comprar mejoras.<br>
-            ¡Sobrevive tantas oleadas como puedas!
-        </p>
-        <button class="main-btn" onclick="game.start()">JUGAR</button>
-    </div>
+// Variables de Estado del Jugador (Se usaría localStorage para persistir)
+let gameState = {
+    saldo: 50,
+    costoSpin: 1,
+    idleRate: 10, // Monedas por hora
+    lastLogin: Date.now() 
+};
 
-    <div id="game-over-screen" style="display: none;">
-        <h1 style="color: #ff0055; text-shadow: 0 0 20px #ff0055;">GAME OVER</h1>
-        <p>Oleadas sobrevividas: <span id="final-wave">0</span></p>
-        <p>Puntuación Final: <span id="final-score">0</span></p>
-        <button class="main-btn" onclick="game.restart()">REINTENTAR</button>
-    </div>
+// --- FUNCIONES DEL JUEGO ---
 
-    <div id="shop-hint">Presiona [ESPACIO] para abrir la Tienda</div>
-    <canvas id="gameCanvas"></canvas>
+/**
+ * 1. Algoritmo Pseudo-Aleatorio (PRNG)
+ * Implementa la lógica de la tragamonedas.
+ */
+function spin() {
+    if (gameState.saldo < gameState.costoSpin) {
+        MESSAGE_DOM.textContent = '¡Saldo insuficiente! Visita la tiendita o espera.';
+        return;
+    }
 
-<script>
-class Game {
-    constructor() {
-        this.canvas = document.getElementById('gameCanvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.resize();
-        window.addEventListener('resize', () => this.resize());
+    // 1. Deducir costo y desactivar botón
+    gameState.saldo -= gameState.costoSpin;
+    updateUI();
+    SPIN_BUTTON.disabled = true;
+    MESSAGE_DOM.textContent = '¡Girando...!';
+
+    // 2. Generar resultados
+    let results = [];
+    const animationDuration = 1000; // Milisegundos
+    let delay = 0;
+
+    for (let i = 0; i < 3; i++) {
+        // Genera un índice aleatorio para cada rodillo
+        const randomIndex = Math.floor(Math.random() * SYMBOLS.length);
+        const resultSymbol = SYMBOLS[randomIndex];
+        results.push(resultSymbol);
         
-        // Estado del juego
-        this.isRunning = false;
-        this.isPaused = false;
-        this.score = 0;
-        this.money = 0;
-        this.wave = 1;
-        this.frameCount = 0;
-        this.difficultyMult = 1;
-
-        // Entidades
-        this.player = { x: 0, y: 0, size: 15, speed: 4, color: '#00f3ff' };
-        this.core = { size: 40, hp: 100, maxHp: 100 };
-        this.bullets = [];
-        this.enemies = [];
-        this.particles = [];
-
-        // Stats / Upgrades
-        this.stats = {
-            damage: 10,
-            fireRate: 15, // frames entre disparos (menor es más rápido)
-            bulletSpeed: 12,
-            lastShot: 0
-        };
-
-        this.costs = {
-            damage: 100,
-            firerate: 150,
-            speed: 80,
-            heal: 200
-        };
-
-        // Controles
-        this.keys = {};
-        this.mouse = { x: 0, y: 0, down: false };
-        
-        this.bindEvents();
+        // Animación de los rodillos
+        setTimeout(() => {
+            REELS_DOM[i].textContent = resultSymbol;
+        }, delay);
+        delay += 300; // Un pequeño retraso para que parezcan parar en secuencia
     }
 
-    resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-        this.cx = this.canvas.width / 2;
-        this.cy = this.canvas.height / 2;
+    // 3. Evaluar el resultado después de la animación
+    setTimeout(() => {
+        const winAmount = checkWin(results);
+        handleWin(winAmount);
+        SPIN_BUTTON.disabled = false;
+        saveGameState();
+    }, animationDuration + delay); 
+}
+
+/**
+ * Verifica si la combinación es ganadora.
+ */
+function checkWin(results) {
+    const r1 = results[0];
+    const r2 = results[1];
+    const r3 = results[2];
+    let win = 0;
+
+    // Verificar triple combinación
+    if (r1 === r2 && r2 === r3) {
+        win = PAYTABLE[r1 + r2 + r3] || 0;
+    } 
+    // Verificar dobles específicos (ej. 2 cerezas)
+    else if (r1 === '🍒' && r2 === '🍒') { win = PAYTABLE['🍒🍒-']; }
+    else if (r2 === '🍒' && r3 === '🍒') { win = PAYTABLE['-🍒🍒']; }
+    else if (r1 === '🍒' && r3 === '🍒') { win = PAYTABLE['🍒-🍒']; }
+
+    return win;
+}
+
+/**
+ * Maneja el pago de las ganancias.
+ */
+function handleWin(amount) {
+    if (amount > 0) {
+        gameState.saldo += amount;
+        MESSAGE_DOM.textContent = `🎉 ¡GANASTE ${amount} MONEDAS! 🎉`;
+    } else {
+        MESSAGE_DOM.textContent = '😔 No tuviste suerte. ¡Intenta de nuevo!';
     }
+    updateUI();
+}
 
-    bindEvents() {
-        window.addEventListener('keydown', e => {
-            this.keys[e.key.toLowerCase()] = true;
-            if (e.code === 'Space' && this.isRunning) this.toggleShop();
-        });
-        window.addEventListener('keyup', e => this.keys[e.key.toLowerCase()] = false);
-        window.addEventListener('mousemove', e => {
-            this.mouse.x = e.clientX;
-            this.mouse.y = e.clientY;
-        });
-        window.addEventListener('mousedown', () => this.mouse.down = true);
-        window.addEventListener('mouseup', () => this.mouse.down = false);
+/**
+ * 2. Mecánica Idle Money (Dinero Pasivo)
+ * Calcula y recoge el dinero acumulado desde la última visita.
+ */
+function calculateIdleMoney() {
+    const now = Date.now();
+    const timeElapsedMs = now - gameState.lastLogin;
+    const timeElapsedHours = timeElapsedMs / (1000 * 60 * 60); // Convertir a horas
+
+    // Calcular el dinero ganado (Tasa * Horas Transcurridas)
+    const totalIdle = Math.floor(timeElapsedHours * gameState.idleRate);
+
+    // Opcional: Establecer un límite máximo
+    const maxIdle = 500; // Ejemplo de límite
+    const claimable = Math.min(totalIdle, maxIdle);
+
+    IDLE_ACUMULADO_DOM.textContent = claimable;
+    return claimable;
+}
+
+function claimIdleMoney() {
+    const claimed = calculateIdleMoney();
+    if (claimed > 0) {
+        gameState.saldo += claimed;
+        // Reiniciar el contador al momento actual
+        gameState.lastLogin = Date.now(); 
+        IDLE_ACUMULADO_DOM.textContent = 0;
+        MESSAGE_DOM.textContent = `🤑 Recogiste ${claimed} monedas de la tiendita.`;
+    } else {
+        MESSAGE_DOM.textContent = 'Aún no hay monedas para recoger.';
     }
+    updateUI();
+    saveGameState();
+}
 
-    start() {
-        document.getElementById('start-screen').style.display = 'none';
-        this.resetGame();
-        this.isRunning = true;
-        this.loop();
-    }
 
-    restart() {
-        document.getElementById('game-over-screen').style.display = 'none';
-        this.resetGame();
-        this.isRunning = true;
-        this.loop();
-    }
+// --- GESTIÓN DE LA UI Y PERSISTENCIA ---
 
-    resetGame() {
-        this.score = 0;
-        this.money = 0;
-        this.wave = 1;
-        this.difficultyMult = 1;
-        this.core.hp = 100;
-        this.player.x = this.cx;
-        this.player.y = this.cy + 100;
-        this.bullets = [];
-        this.enemies = [];
-        this.particles = [];
-        
-        // Reset stats
-        this.stats.damage = 20;
-        this.stats.fireRate = 20; 
-        this.player.speed = 4;
-        
-        // Reset costs
-        this.costs = { damage: 100, firerate: 150, speed: 80, heal: 200 };
-        
-        this.updateUI();
-    }
+/**
+ * Actualiza el saldo en la interfaz.
+ */
+function updateUI() {
+    SALDO_DOM.textContent = gameState.saldo;
+    // Esto se podría expandir para actualizar los precios de la tienda, etc.
+}
 
-    toggleShop() {
-        this.isPaused = !this.isPaused;
-        const shop = document.getElementById('shop');
-        shop.style.display = this.isPaused ? 'block' : 'none';
-        if (this.isPaused) this.updateShopUI();
-    }
+/**
+ * Guarda el estado del juego en el navegador.
+ */
+function saveGameState() {
+    localStorage.setItem('maquinitaGameState', JSON.stringify(gameState));
+}
 
-    updateShopUI() {
-        document.getElementById('shop-money').innerText = this.money;
-        document.getElementById('cost-damage').innerText = Math.floor(this.costs.damage);
-        document.getElementById('cost-firerate').innerText = Math.floor(this.costs.firerate);
-        document.getElementById('cost-speed').innerText = Math.floor(this.costs.speed);
-        document.getElementById('cost-heal').innerText = Math.floor(this.costs.heal);
-        
-        // Update button states
-        document.getElementById('upg-damage').disabled = this.money < this.costs.damage;
-        document.getElementById('upg-firerate').disabled = this.money < this.costs.firerate;
-        document.getElementById('upg-speed').disabled = this.money < this.costs.speed;
-        document.getElementById('upg-heal').disabled = this.money < this.costs.heal || this.core.hp >= 100;
-    }
-
-    purchase(type) {
-        if (this.money >= this.costs[type]) {
-            this.money -= this.costs[type];
-            
-            if (type === 'damage') {
-                this.stats.damage += 10;
-                this.costs.damage *= 1.4;
-            } else if (type === 'firerate') {
-                this.stats.fireRate = Math.max(5, this.stats.fireRate * 0.85);
-                this.costs.firerate *= 1.5;
-            } else if (type === 'speed') {
-                this.player.speed += 0.5;
-                this.costs.speed *= 1.6;
-            } else if (type === 'heal') {
-                this.core.hp = Math.min(100, this.core.hp + 25);
-                this.costs.heal *= 1.2;
-            }
-            
-            this.updateUI();
-            this.updateShopUI();
-        }
-    }
-
-    spawnEnemy() {
-        // Spawn logic based on wave
-        const angle = Math.random() * Math.PI * 2;
-        const radius = Math.max(this.canvas.width, this.canvas.height) / 1.5;
-        const x = this.cx + Math.cos(angle) * radius;
-        const y = this.cy + Math.sin(angle) * radius;
-        
-        let type = 'normal';
-        let hp = 30 * this.difficultyMult;
-        let speed = 1.5 + (this.difficultyMult * 0.1);
-        let color = '#ff0055';
-        let size = 15;
-        let reward = 10;
-
-        // Introducir variantes según oleada
-        const rand = Math.random();
-        if (this.wave > 3 && rand > 0.8) { // Tank
-            type = 'tank';
-            hp *= 3;
-            speed *= 0.6;
-            size = 25;
-            color = '#ffe600';
-            reward = 30;
-        } else if (this.wave > 5 && rand < 0.2) { // Fast
-            type = 'fast';
-            hp *= 0.5;
-            speed *= 1.8;
-            size = 10;
-            color = '#bf00ff';
-            reward = 15;
-        }
-
-        this.enemies.push({ x, y, hp, maxHp: hp, speed, color, size, type, reward });
-    }
-
-    update() {
-        if (!this.isRunning || this.isPaused) return;
-
-        this.frameCount++;
-
-        // Spawn controller
-        let spawnRate = Math.max(20, 100 - (this.wave * 5));
-        if (this.frameCount % spawnRate === 0) this.spawnEnemy();
-        
-        // Wave controller (cada 1000 frames sube oleada)
-        if (this.frameCount % 1200 === 0) {
-            this.wave++;
-            this.difficultyMult += 0.2;
-            this.updateUI();
-            // Bonus de dinero por oleada
-            this.money += 50;
-            this.createExplosion(this.cx, this.cy, '#00f3ff', 20); // Visual effect
-        }
-
-        // Player movement
-        let dx = 0, dy = 0;
-        if (this.keys['w'] || this.keys['arrowup']) dy = -1;
-        if (this.keys['s'] || this.keys['arrowdown']) dy = 1;
-        if (this.keys['a'] || this.keys['arrowleft']) dx = -1;
-        if (this.keys['d'] || this.keys['arrowright']) dx = 1;
-        
-        if (dx !== 0 || dy !== 0) {
-            // Normalizar diagonal
-            const len = Math.sqrt(dx*dx + dy*dy);
-            this.player.x += (dx/len) * this.player.speed;
-            this.player.y += (dy/len) * this.player.speed;
-        }
-
-        // Clamping player to screen
-        this.player.x = Math.max(0, Math.min(this.canvas.width, this.player.x));
-        this.player.y = Math.max(0, Math.min(this.canvas.height, this.player.y));
-
-        // Shooting
-        if (this.mouse.down && this.frameCount - this.stats.lastShot > this.stats.fireRate) {
-            const angle = Math.atan2(this.mouse.y - this.player.y, this.mouse.x - this.player.x);
-            this.bullets.push({
-                x: this.player.x,
-                y: this.player.y,
-                vx: Math.cos(angle) * this.stats.bulletSpeed,
-                vy: Math.sin(angle) * this.stats.bulletSpeed,
-                life: 100
-            });
-            this.stats.lastShot = this.frameCount;
-        }
-
-        // Update Bullets
-        for (let i = this.bullets.length - 1; i >= 0; i--) {
-            const b = this.bullets[i];
-            b.x += b.vx;
-            b.y += b.vy;
-            b.life--;
-            if (b.life <= 0) this.bullets.splice(i, 1);
-        }
-
-        // Update Enemies
-        for (let i = this.enemies.length - 1; i >= 0; i--) {
-            const e = this.enemies[i];
-            const angle = Math.atan2(this.cy - e.y, this.cx - e.x);
-            e.x += Math.cos(angle) * e.speed;
-            e.y += Math.sin(angle) * e.speed;
-
-            // Colisión con balas
-            for (let j = this.bullets.length - 1; j >= 0; j--) {
-                const b = this.bullets[j];
-                const dist = Math.hypot(e.x - b.x, e.y - b.y);
-                if (dist < e.size + 5) {
-                    e.hp -= this.stats.damage;
-                    this.createExplosion(e.x, e.y, e.color, 3);
-                    this.bullets.splice(j, 1);
-                    if (e.hp <= 0) {
-                        this.score += e.reward * 10;
-                        this.money += e.reward;
-                        this.createExplosion(e.x, e.y, e.color, 10);
-                        this.enemies.splice(i, 1);
-                        this.updateUI();
-                    }
-                    break; 
-                }
-            }
-            
-            // Colisión con núcleo
-            const distCore = Math.hypot(e.x - this.cx, e.y - this.cy);
-            if (distCore < this.core.size + e.size) {
-                this.core.hp -= 10; // Daño al núcleo
-                this.createExplosion(this.cx, this.cy, '#ff0055', 15);
-                this.enemies.splice(i, 1);
-                this.updateUI();
-                if (this.core.hp <= 0) this.gameOver();
-            }
-        }
-
-        // Update Particles
-        for (let i = this.particles.length - 1; i >= 0; i--) {
-            const p = this.particles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life -= 0.05;
-            if (p.life <= 0) this.particles.splice(i, 1);
-        }
-    }
-
-    createExplosion(x, y, color, amount) {
-        for (let i = 0; i < amount; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = Math.random() * 3;
-            this.particles.push({
-                x, y,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                color: color,
-                life: 1,
-                size: Math.random() * 3 + 1
-            });
-        }
-    }
-
-    draw() {
-        // Fondo y estela
-        this.ctx.fillStyle = 'rgba(5, 5, 5, 0.2)'; 
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // Dibujar Núcleo
-        this.ctx.shadowBlur = 20;
-        this.ctx.shadowColor = '#00f3ff';
-        this.ctx.fillStyle = `rgba(0, 243, 255, ${this.core.hp / 100})`;
-        this.ctx.beginPath();
-        this.ctx.arc(this.cx, this.cy, this.core.size, 0, Math.PI * 2);
-        this.ctx.fill();
-        
-        // Zona segura (anillo)
-        this.ctx.strokeStyle = '#004455';
-        this.ctx.lineWidth = 2;
-        this.ctx.beginPath();
-        this.ctx.arc(this.cx, this.cy, 200, 0, Math.PI * 2);
-        this.ctx.stroke();
-
-        // Dibujar Jugador
-        this.ctx.shadowColor = '#ffffff';
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.player.x + Math.cos(Math.atan2(this.mouse.y - this.player.y, this.mouse.x - this.player.x)) * 20, 
-                        this.player.y + Math.sin(Math.atan2(this.mouse.y - this.player.y, this.mouse.x - this.player.x)) * 20);
-        this.ctx.lineTo(this.player.x - 10, this.player.y - 10);
-        this.ctx.lineTo(this.player.x - 10, this.player.y + 10);
-        this.ctx.fill();
-
-        // Dibujar Balas
-        this.ctx.fillStyle = '#ffff00';
-        this.ctx.shadowColor = '#ffff00';
-        this.bullets.forEach(b => {
-            this.ctx.beginPath();
-            this.ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
-            this.ctx.fill();
-        });
-
-        // Dibujar Enemigos
-        this.enemies.forEach(e => {
-            this.ctx.shadowColor = e.color;
-            this.ctx.fillStyle = e.color;
-            this.ctx.beginPath();
-            if(e.type === 'tank') {
-                this.ctx.rect(e.x - e.size, e.y - e.size, e.size*2, e.size*2);
-            } else if (e.type === 'fast') {
-                this.ctx.moveTo(e.x, e.y - e.size);
-                this.ctx.lineTo(e.x + e.size, e.y + e.size);
-                this.ctx.lineTo(e.x - e.size, e.y + e.size);
-            } else {
-                this.ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
-            }
-            this.ctx.fill();
-        });
-
-        // Dibujar Partículas
-        this.particles.forEach(p => {
-            this.ctx.globalAlpha = p.life;
-            this.ctx.fillStyle = p.color;
-            this.ctx.beginPath();
-            this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.globalAlpha = 1.0;
-        });
-
-        this.ctx.shadowBlur = 0;
-    }
-
-    updateUI() {
-        document.getElementById('score').innerText = this.score;
-        document.getElementById('money').innerText = this.money;
-        document.getElementById('core-hp').innerText = Math.floor(this.core.hp);
-        document.getElementById('wave').innerText = this.wave;
-    }
-
-    gameOver() {
-        this.isRunning = false;
-        document.getElementById('final-score').innerText = this.score;
-        document.getElementById('final-wave').innerText = this.wave;
-        document.getElementById('game-over-screen').style.display = 'flex';
-    }
-
-    loop() {
-        if (this.isRunning) {
-            this.update();
-            this.draw();
-            requestAnimationFrame(() => this.loop());
-        }
+/**
+ * Carga el estado del juego.
+ */
+function loadGameState() {
+    const savedState = localStorage.getItem('maquinitaGameState');
+    if (savedState) {
+        gameState = JSON.parse(savedState);
+        // Asegurarse de que el saldo esté en número
+        gameState.saldo = Number(gameState.saldo); 
     }
 }
 
-const game = new Game();
-</script>
-</body>
-</html>
+
+// --- INICIALIZACIÓN DEL JUEGO ---
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadGameState(); // Cargar datos guardados
+    updateUI();      // Actualizar la interfaz
+    calculateIdleMoney(); // Calcular lo ganado mientras estuvo ausente
+
+    // Asignar Eventos
+    SPIN_BUTTON.addEventListener('click', spin);
+    CLAIM_BUTTON.addEventListener('click', claimIdleMoney);
+
+    // Actualización de dinero Idle cada 10 segundos (para la sensación de progreso)
+    setInterval(calculateIdleMoney, 10000); 
+});
+
+// ¡Falta la lógica para comprar en la Tiendita! Eso sería el siguiente paso.
