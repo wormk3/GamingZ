@@ -1,200 +1,327 @@
-// --- VARIABLES GLOBALES DEL JUEGO ---
-const REELS_DOM = [
-    document.getElementById('reel-1'),
-    document.getElementById('reel-2'),
-    document.getElementById('reel-3')
-];
-const SALDO_DOM = document.getElementById('saldo-valor');
-const SPIN_BUTTON = document.getElementById('spin-button');
-const MESSAGE_DOM = document.getElementById('message');
-const CLAIM_BUTTON = document.getElementById('claim-idle');
-const IDLE_ACUMULADO_DOM = document.getElementById('idle-acumulado');
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Ataxx Arcade · Touch Pointer</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b1020;
+        --panel: #11182d;
+        --text: #e9f2ff;
+        --accent: #46d8ff;
+      }
 
-// Símbolos disponibles (usa emojis para simplicidad)
-const SYMBOLS = ['🍒', '🍋', '🔔', '⭐', '7️⃣']; 
+      * { box-sizing: border-box; }
 
-// Configuración del Algoritmo (Paytable)
-// RTP es la probabilidad de pago, crucial para la adicción!
-const PAYTABLE = {
-    // 3 x Símbolo, Ganancia:
-    '7️⃣7️⃣7️⃣': 100,
-    '⭐⭐⭐': 50,
-    '🔔🔔🔔': 20,
-    '🍋🍋🍋': 10,
-    '🍒🍒🍒': 5,
-    // 2 x Símbolo, Ganancia (ej. 2 cerezas):
-    '🍒🍒-': 2, 
-    '-🍒🍒': 2,
-    '🍒-🍒': 2 
-    // Más combinaciones pueden ser añadidas
-};
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: radial-gradient(circle at top, #1b2952, var(--bg));
+        color: var(--text);
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: 12px;
+      }
 
-// Variables de Estado del Jugador (Se usaría localStorage para persistir)
-let gameState = {
-    saldo: 50,
-    costoSpin: 1,
-    idleRate: 10, // Monedas por hora
-    lastLogin: Date.now() 
-};
+      .app {
+        width: min(100%, 980px);
+        background: color-mix(in oklab, var(--panel) 88%, black);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px;
+        padding: 12px;
+      }
 
-// --- FUNCIONES DEL JUEGO ---
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(1rem, 2.6vw, 1.5rem);
+      }
 
-/**
- * 1. Algoritmo Pseudo-Aleatorio (PRNG)
- * Implementa la lógica de la tragamonedas.
- */
-function spin() {
-    if (gameState.saldo < gameState.costoSpin) {
-        MESSAGE_DOM.textContent = '¡Saldo insuficiente! Visita la tiendita o espera.';
-        return;
-    }
-
-    // 1. Deducir costo y desactivar botón
-    gameState.saldo -= gameState.costoSpin;
-    updateUI();
-    SPIN_BUTTON.disabled = true;
-    MESSAGE_DOM.textContent = '¡Girando...!';
-
-    // 2. Generar resultados
-    let results = [];
-    const animationDuration = 1000; // Milisegundos
-    let delay = 0;
-
-    for (let i = 0; i < 3; i++) {
-        // Genera un índice aleatorio para cada rodillo
-        const randomIndex = Math.floor(Math.random() * SYMBOLS.length);
-        const resultSymbol = SYMBOLS[randomIndex];
-        results.push(resultSymbol);
-        
-        // Animación de los rodillos
-        setTimeout(() => {
-            REELS_DOM[i].textContent = resultSymbol;
-        }, delay);
-        delay += 300; // Un pequeño retraso para que parezcan parar en secuencia
-    }
-
-    // 3. Evaluar el resultado después de la animación
-    setTimeout(() => {
-        const winAmount = checkWin(results);
-        handleWin(winAmount);
-        SPIN_BUTTON.disabled = false;
-        saveGameState();
-    }, animationDuration + delay); 
-}
-
-/**
- * Verifica si la combinación es ganadora.
- */
-function checkWin(results) {
-    const r1 = results[0];
-    const r2 = results[1];
-    const r3 = results[2];
-    let win = 0;
-
-    // Verificar triple combinación
-    if (r1 === r2 && r2 === r3) {
-        win = PAYTABLE[r1 + r2 + r3] || 0;
-    } 
-    // Verificar dobles específicos (ej. 2 cerezas)
-    else if (r1 === '🍒' && r2 === '🍒') { win = PAYTABLE['🍒🍒-']; }
-    else if (r2 === '🍒' && r3 === '🍒') { win = PAYTABLE['-🍒🍒']; }
-    else if (r1 === '🍒' && r3 === '🍒') { win = PAYTABLE['🍒-🍒']; }
-
-    return win;
-}
-
-/**
- * Maneja el pago de las ganancias.
- */
-function handleWin(amount) {
-    if (amount > 0) {
-        gameState.saldo += amount;
-        MESSAGE_DOM.textContent = `🎉 ¡GANASTE ${amount} MONEDAS! 🎉`;
-    } else {
-        MESSAGE_DOM.textContent = '😔 No tuviste suerte. ¡Intenta de nuevo!';
-    }
-    updateUI();
-}
-
-/**
- * 2. Mecánica Idle Money (Dinero Pasivo)
- * Calcula y recoge el dinero acumulado desde la última visita.
- */
-function calculateIdleMoney() {
-    const now = Date.now();
-    const timeElapsedMs = now - gameState.lastLogin;
-    const timeElapsedHours = timeElapsedMs / (1000 * 60 * 60); // Convertir a horas
-
-    // Calcular el dinero ganado (Tasa * Horas Transcurridas)
-    const totalIdle = Math.floor(timeElapsedHours * gameState.idleRate);
-
-    // Opcional: Establecer un límite máximo
-    const maxIdle = 500; // Ejemplo de límite
-    const claimable = Math.min(totalIdle, maxIdle);
-
-    IDLE_ACUMULADO_DOM.textContent = claimable;
-    return claimable;
-}
-
-function claimIdleMoney() {
-    const claimed = calculateIdleMoney();
-    if (claimed > 0) {
-        gameState.saldo += claimed;
-        // Reiniciar el contador al momento actual
-        gameState.lastLogin = Date.now(); 
-        IDLE_ACUMULADO_DOM.textContent = 0;
-        MESSAGE_DOM.textContent = `🤑 Recogiste ${claimed} monedas de la tiendita.`;
-    } else {
-        MESSAGE_DOM.textContent = 'Aún no hay monedas para recoger.';
-    }
-    updateUI();
-    saveGameState();
-}
+      .hint {
+        margin: 0 0 12px;
+        opacity: 0.9;
+        font-size: 0.95rem;
+      }
 
 
-// --- GESTIÓN DE LA UI Y PERSISTENCIA ---
+      .core-toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin: 0 0 12px;
+        font-size: 0.9rem;
+      }
 
-/**
- * Actualiza el saldo en la interfaz.
- */
-function updateUI() {
-    SALDO_DOM.textContent = gameState.saldo;
-    // Esto se podría expandir para actualizar los precios de la tienda, etc.
-}
+      .core-toolbar select,
+      .core-toolbar button {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        padding: 6px 10px;
+      }
 
-/**
- * Guarda el estado del juego en el navegador.
- */
-function saveGameState() {
-    localStorage.setItem('maquinitaGameState', JSON.stringify(gameState));
-}
+      .game-wrap {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #000;
+      }
 
-/**
- * Carga el estado del juego.
- */
-function loadGameState() {
-    const savedState = localStorage.getItem('maquinitaGameState');
-    if (savedState) {
-        gameState = JSON.parse(savedState);
-        // Asegurarse de que el saldo esté en número
-        gameState.saldo = Number(gameState.saldo); 
-    }
-}
+      #game {
+        width: 100%;
+        height: 100%;
+      }
 
+      .touch-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        touch-action: none;
+        user-select: none;
+      }
 
-// --- INICIALIZACIÓN DEL JUEGO ---
+      .touch-layer::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(transparent, rgba(0, 0, 0, 0.06));
+        pointer-events: none;
+      }
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadGameState(); // Cargar datos guardados
-    updateUI();      // Actualizar la interfaz
-    calculateIdleMoney(); // Calcular lo ganado mientras estuvo ausente
+      .cursor {
+        position: absolute;
+        width: 30px;
+        height: 30px;
+        margin-left: -15px;
+        margin-top: -15px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45), 0 0 12px rgba(70, 216, 255, 0.85);
+        transform: translate3d(-9999px, -9999px, 0);
+        pointer-events: none;
+      }
 
-    // Asignar Eventos
-    SPIN_BUTTON.addEventListener('click', spin);
-    CLAIM_BUTTON.addEventListener('click', claimIdleMoney);
+      .cursor::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 8px;
+        height: 8px;
+        margin-left: -4px;
+        margin-top: -4px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
 
-    // Actualización de dinero Idle cada 10 segundos (para la sensación de progreso)
-    setInterval(calculateIdleMoney, 10000); 
-});
+      .touch-help {
+        margin-top: 10px;
+        font-size: 0.92rem;
+        opacity: 0.9;
+      }
 
-// ¡Falta la lógica para comprar en la Tiendita! Eso sería el siguiente paso.
+      code {
+        background: rgba(255, 255, 255, 0.07);
+        padding: 1px 6px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <h1>Ataxx (Arcade) · Control Touch tipo puntero</h1>
+      <p class="hint">Toca sobre la pantalla para mover el puntero. Si no carga, cambia de core abajo y recarga.</p>
+
+      <div class="core-toolbar">
+        <label for="coreSelect">Core:</label>
+        <select id="coreSelect">
+          <option value="arcade">arcade (FBNeo)</option>
+          <option value="mame2003">mame2003</option>
+        </select>
+        <button id="reloadCore" type="button">Aplicar y recargar</button>
+      </div>
+
+      <section class="game-wrap" aria-label="Emulador Ataxx">
+        <section id="game"></section>
+
+        <div class="touch-layer" id="touchLayer" aria-label="Capa táctil transparente">
+          <div class="cursor" id="touchCursor" aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <p class="touch-help">
+        <strong>Cómo usar:</strong> toca o arrastra para mover el puntero. Al soltar el dedo se envía
+        <code>Botón 1</code> (equivalente a <code>Ctrl</code>) en la posición actual.
+      </p>
+    </main>
+
+    <script>
+      const coreFromUrl = new URLSearchParams(window.location.search).get('core');
+      const savedCore = localStorage.getItem('ataxx_core');
+      const selectedCore = coreFromUrl || savedCore || 'arcade';
+
+      window.EJS_player = '#game';
+      window.EJS_core = selectedCore;
+      window.EJS_gameName = 'Ataxx';
+      window.EJS_gameUrl = 'ataxx.zip';
+      window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+      window.EJS_startOnLoaded = true;
+      window.EJS_onGameStart = () => {
+        setTimeout(() => window.focus(), 200);
+      };
+    </script>
+    <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
+
+    <script>
+      const FIRE_KEY = 'Control';
+      const DIR_KEYS = {
+        up: 'ArrowUp',
+        down: 'ArrowDown',
+        left: 'ArrowLeft',
+        right: 'ArrowRight'
+      };
+
+      const layer = document.getElementById('touchLayer');
+      const cursorEl = document.getElementById('touchCursor');
+      const coreSelect = document.getElementById('coreSelect');
+      const reloadCore = document.getElementById('reloadCore');
+
+      coreSelect.value = window.EJS_core;
+      reloadCore.addEventListener('click', () => {
+        localStorage.setItem('ataxx_core', coreSelect.value);
+        const url = new URL(window.location.href);
+        url.searchParams.set('core', coreSelect.value);
+        window.location.href = url.toString();
+      });
+
+      const activeDir = new Set();
+      let pointerId = null;
+      let animationId = null;
+
+      const cursorPos = { x: 0.5, y: 0.5 };
+      const targetPos = { x: 0.5, y: 0.5 };
+
+      function keyEvent(type, key) {
+        const evt = new KeyboardEvent(type, {
+          key,
+          code: key,
+          bubbles: true,
+          cancelable: true
+        });
+        window.dispatchEvent(evt);
+        document.dispatchEvent(evt);
+      }
+
+      function pressDir(dir) {
+        if (activeDir.has(dir)) return;
+        activeDir.add(dir);
+        keyEvent('keydown', DIR_KEYS[dir]);
+      }
+
+      function releaseDir(dir) {
+        if (!activeDir.has(dir)) return;
+        activeDir.delete(dir);
+        keyEvent('keyup', DIR_KEYS[dir]);
+      }
+
+      function releaseAllDirs() {
+        ['up', 'down', 'left', 'right'].forEach(releaseDir);
+      }
+
+      function pulseFire() {
+        keyEvent('keydown', FIRE_KEY);
+        setTimeout(() => keyEvent('keyup', FIRE_KEY), 60);
+      }
+
+      function clamp01(value) {
+        return Math.min(1, Math.max(0, value));
+      }
+
+      function setTargetFromClient(clientX, clientY) {
+        const rect = layer.getBoundingClientRect();
+        targetPos.x = clamp01((clientX - rect.left) / rect.width);
+        targetPos.y = clamp01((clientY - rect.top) / rect.height);
+      }
+
+      function renderCursor() {
+        const rect = layer.getBoundingClientRect();
+        cursorEl.style.transform = `translate3d(${cursorPos.x * rect.width}px, ${cursorPos.y * rect.height}px, 0)`;
+      }
+
+      function driveDirections(dx, dy) {
+        const threshold = 0.016;
+        if (dy < -threshold) pressDir('up'); else releaseDir('up');
+        if (dy > threshold) pressDir('down'); else releaseDir('down');
+        if (dx < -threshold) pressDir('left'); else releaseDir('left');
+        if (dx > threshold) pressDir('right'); else releaseDir('right');
+      }
+
+      function tick() {
+        const easing = 0.34;
+        const dx = targetPos.x - cursorPos.x;
+        const dy = targetPos.y - cursorPos.y;
+
+        cursorPos.x += dx * easing;
+        cursorPos.y += dy * easing;
+
+        const remainingX = targetPos.x - cursorPos.x;
+        const remainingY = targetPos.y - cursorPos.y;
+
+        driveDirections(remainingX, remainingY);
+        renderCursor();
+
+        animationId = requestAnimationFrame(tick);
+      }
+
+      function startLoop() {
+        if (animationId !== null) return;
+        animationId = requestAnimationFrame(tick);
+      }
+
+      function stopLoop() {
+        if (animationId === null) return;
+        cancelAnimationFrame(animationId);
+        animationId = null;
+        releaseAllDirs();
+      }
+
+      layer.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        pointerId = e.pointerId;
+        layer.setPointerCapture(pointerId);
+        setTargetFromClient(e.clientX, e.clientY);
+        startLoop();
+      });
+
+      layer.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== pointerId) return;
+        e.preventDefault();
+        setTargetFromClient(e.clientX, e.clientY);
+      });
+
+      function onPointerRelease(e) {
+        if (e.pointerId !== pointerId) return;
+        e.preventDefault();
+        pointerId = null;
+        pulseFire();
+        setTimeout(stopLoop, 80);
+      }
+
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => {
+        layer.addEventListener(ev, onPointerRelease);
+      });
+
+      window.addEventListener('blur', () => {
+        pointerId = null;
+        stopLoop();
+      });
+
+      renderCursor();
+    </script>
+  </body>
+</html>
