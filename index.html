@@ -117,7 +117,7 @@
   <body>
     <main class="app">
       <h1>Ataxx (Arcade) · Control Touch tipo puntero</h1>
-      <p class="hint">Toca sobre la pantalla para mover el puntero. Sin palancas ni botones visibles.</p>
+      <p class="hint">Toca sobre la pantalla para mover el puntero. Core: <code>mame2003</code> (compatible con romset MAME 0.78).</p>
 
       <section class="game-wrap" aria-label="Emulador Ataxx">
         <section id="game"></section>
@@ -135,16 +135,12 @@
 
     <script>
       window.EJS_player = '#game';
-      window.EJS_core = 'arcade';
+      window.EJS_core = 'mame2003';
       window.EJS_gameName = 'Ataxx';
       window.EJS_gameUrl = 'ataxx.zip';
       window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
       window.EJS_startOnLoaded = true;
       window.EJS_onGameStart = () => {
-      // Ocultamos los controles touch de EmulatorJS para usar los nuestros.
-      window.EJS_startOnLoaded = true;
-      window.EJS_onGameStart = () => {
-        // Intenta enfocarlo para aceptar teclas virtuales.
         setTimeout(() => window.focus(), 200);
       };
     </script>
@@ -152,7 +148,6 @@
 
     <script>
       const FIRE_KEY = 'Control';
-      const FIRE_KEY = 'Control'; // Botón 1 arcade (habitual en mapeos web)
       const DIR_KEYS = {
         up: 'ArrowUp',
         down: 'ArrowDown',
@@ -169,7 +164,6 @@
 
       const cursorPos = { x: 0.5, y: 0.5 };
       const targetPos = { x: 0.5, y: 0.5 };
-      const activeDir = new Set();
 
       function keyEvent(type, key) {
         const evt = new KeyboardEvent(type, {
