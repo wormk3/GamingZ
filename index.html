@@ -1,200 +1,270 @@
-// --- VARIABLES GLOBALES DEL JUEGO ---
-const REELS_DOM = [
-    document.getElementById('reel-1'),
-    document.getElementById('reel-2'),
-    document.getElementById('reel-3')
-];
-const SALDO_DOM = document.getElementById('saldo-valor');
-const SPIN_BUTTON = document.getElementById('spin-button');
-const MESSAGE_DOM = document.getElementById('message');
-const CLAIM_BUTTON = document.getElementById('claim-idle');
-const IDLE_ACUMULADO_DOM = document.getElementById('idle-acumulado');
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Ataxx Arcade Touch</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b1020;
+        --panel: #11182d;
+        --accent: #3ed0ff;
+        --text: #e9f2ff;
+      }
 
-// Símbolos disponibles (usa emojis para simplicidad)
-const SYMBOLS = ['🍒', '🍋', '🔔', '⭐', '7️⃣']; 
+      * { box-sizing: border-box; }
 
-// Configuración del Algoritmo (Paytable)
-// RTP es la probabilidad de pago, crucial para la adicción!
-const PAYTABLE = {
-    // 3 x Símbolo, Ganancia:
-    '7️⃣7️⃣7️⃣': 100,
-    '⭐⭐⭐': 50,
-    '🔔🔔🔔': 20,
-    '🍋🍋🍋': 10,
-    '🍒🍒🍒': 5,
-    // 2 x Símbolo, Ganancia (ej. 2 cerezas):
-    '🍒🍒-': 2, 
-    '-🍒🍒': 2,
-    '🍒-🍒': 2 
-    // Más combinaciones pueden ser añadidas
-};
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: radial-gradient(circle at top, #1b2952, var(--bg));
+        color: var(--text);
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: 12px;
+      }
 
-// Variables de Estado del Jugador (Se usaría localStorage para persistir)
-let gameState = {
-    saldo: 50,
-    costoSpin: 1,
-    idleRate: 10, // Monedas por hora
-    lastLogin: Date.now() 
-};
+      .app {
+        width: min(100%, 980px);
+        background: color-mix(in oklab, var(--panel) 88%, black);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px;
+        padding: 12px;
+      }
 
-// --- FUNCIONES DEL JUEGO ---
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(1rem, 2.6vw, 1.5rem);
+      }
 
-/**
- * 1. Algoritmo Pseudo-Aleatorio (PRNG)
- * Implementa la lógica de la tragamonedas.
- */
-function spin() {
-    if (gameState.saldo < gameState.costoSpin) {
-        MESSAGE_DOM.textContent = '¡Saldo insuficiente! Visita la tiendita o espera.';
-        return;
-    }
+      .hint {
+        margin: 0 0 12px;
+        opacity: 0.85;
+        font-size: 0.92rem;
+      }
 
-    // 1. Deducir costo y desactivar botón
-    gameState.saldo -= gameState.costoSpin;
-    updateUI();
-    SPIN_BUTTON.disabled = true;
-    MESSAGE_DOM.textContent = '¡Girando...!';
+      #game {
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #000;
+      }
 
-    // 2. Generar resultados
-    let results = [];
-    const animationDuration = 1000; // Milisegundos
-    let delay = 0;
+      .controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 12px;
+        margin-top: 14px;
+        user-select: none;
+        touch-action: none;
+      }
 
-    for (let i = 0; i < 3; i++) {
-        // Genera un índice aleatorio para cada rodillo
-        const randomIndex = Math.floor(Math.random() * SYMBOLS.length);
-        const resultSymbol = SYMBOLS[randomIndex];
-        results.push(resultSymbol);
-        
-        // Animación de los rodillos
-        setTimeout(() => {
-            REELS_DOM[i].textContent = resultSymbol;
-        }, delay);
-        delay += 300; // Un pequeño retraso para que parezcan parar en secuencia
-    }
+      .dpad {
+        width: 170px;
+        height: 170px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.11), rgba(0, 0, 0, 0.25));
+        position: relative;
+        display: grid;
+        place-items: center;
+      }
 
-    // 3. Evaluar el resultado después de la animación
-    setTimeout(() => {
-        const winAmount = checkWin(results);
-        handleWin(winAmount);
-        SPIN_BUTTON.disabled = false;
-        saveGameState();
-    }, animationDuration + delay); 
-}
+      .stick {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        background: rgba(62, 208, 255, 0.8);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        box-shadow: 0 0 14px rgba(62, 208, 255, 0.6);
+        transform: translate(0, 0);
+        transition: transform 35ms linear;
+      }
 
-/**
- * Verifica si la combinación es ganadora.
- */
-function checkWin(results) {
-    const r1 = results[0];
-    const r2 = results[1];
-    const r3 = results[2];
-    let win = 0;
+      .btn-fire {
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        border: none;
+        background: radial-gradient(circle at 30% 30%, #ff7d7d, #c32020);
+        color: #fff;
+        font-weight: 700;
+        font-size: 1rem;
+        box-shadow: 0 6px 20px rgba(255, 0, 0, 0.35);
+      }
 
-    // Verificar triple combinación
-    if (r1 === r2 && r2 === r3) {
-        win = PAYTABLE[r1 + r2 + r3] || 0;
-    } 
-    // Verificar dobles específicos (ej. 2 cerezas)
-    else if (r1 === '🍒' && r2 === '🍒') { win = PAYTABLE['🍒🍒-']; }
-    else if (r2 === '🍒' && r3 === '🍒') { win = PAYTABLE['-🍒🍒']; }
-    else if (r1 === '🍒' && r3 === '🍒') { win = PAYTABLE['🍒-🍒']; }
+      .btn-fire:active,
+      .btn-fire.active {
+        transform: scale(0.95);
+        filter: brightness(1.08);
+      }
 
-    return win;
-}
+      @media (min-width: 860px) {
+        .controls { max-width: 500px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <h1>Ataxx (Arcade) · Modo Touch</h1>
+      <p class="hint">ROM local: <code>ataxx.zip</code>. Palanca virtual + 1 botón (touch completo).</p>
+      <section id="game"></section>
 
-/**
- * Maneja el pago de las ganancias.
- */
-function handleWin(amount) {
-    if (amount > 0) {
-        gameState.saldo += amount;
-        MESSAGE_DOM.textContent = `🎉 ¡GANASTE ${amount} MONEDAS! 🎉`;
-    } else {
-        MESSAGE_DOM.textContent = '😔 No tuviste suerte. ¡Intenta de nuevo!';
-    }
-    updateUI();
-}
+      <section class="controls" aria-label="Controles táctiles">
+        <div class="dpad" id="dpad" aria-label="Palanca virtual">
+          <div class="stick" id="stick"></div>
+        </div>
 
-/**
- * 2. Mecánica Idle Money (Dinero Pasivo)
- * Calcula y recoge el dinero acumulado desde la última visita.
- */
-function calculateIdleMoney() {
-    const now = Date.now();
-    const timeElapsedMs = now - gameState.lastLogin;
-    const timeElapsedHours = timeElapsedMs / (1000 * 60 * 60); // Convertir a horas
+        <button class="btn-fire" id="fire" aria-label="Botón 1">BOTÓN</button>
+      </section>
+    </main>
 
-    // Calcular el dinero ganado (Tasa * Horas Transcurridas)
-    const totalIdle = Math.floor(timeElapsedHours * gameState.idleRate);
+    <script>
+      // EmulatorJS (MAME/Arcade)
+      window.EJS_player = '#game';
+      window.EJS_core = 'arcade';
+      window.EJS_gameName = 'Ataxx';
+      window.EJS_gameUrl = 'ataxx.zip';
+      window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+      // Ocultamos los controles touch de EmulatorJS para usar los nuestros.
+      window.EJS_startOnLoaded = true;
+      window.EJS_onGameStart = () => {
+        // Intenta enfocarlo para aceptar teclas virtuales.
+        setTimeout(() => window.focus(), 200);
+      };
+    </script>
+    <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
 
-    // Opcional: Establecer un límite máximo
-    const maxIdle = 500; // Ejemplo de límite
-    const claimable = Math.min(totalIdle, maxIdle);
+    <script>
+      const FIRE_KEY = 'Control'; // Botón 1 arcade (habitual en mapeos web)
+      const DIR_KEYS = {
+        up: 'ArrowUp',
+        down: 'ArrowDown',
+        left: 'ArrowLeft',
+        right: 'ArrowRight'
+      };
 
-    IDLE_ACUMULADO_DOM.textContent = claimable;
-    return claimable;
-}
+      const activeDir = new Set();
 
-function claimIdleMoney() {
-    const claimed = calculateIdleMoney();
-    if (claimed > 0) {
-        gameState.saldo += claimed;
-        // Reiniciar el contador al momento actual
-        gameState.lastLogin = Date.now(); 
-        IDLE_ACUMULADO_DOM.textContent = 0;
-        MESSAGE_DOM.textContent = `🤑 Recogiste ${claimed} monedas de la tiendita.`;
-    } else {
-        MESSAGE_DOM.textContent = 'Aún no hay monedas para recoger.';
-    }
-    updateUI();
-    saveGameState();
-}
+      function keyEvent(type, key) {
+        const evt = new KeyboardEvent(type, {
+          key,
+          code: key,
+          bubbles: true,
+          cancelable: true
+        });
+        window.dispatchEvent(evt);
+        document.dispatchEvent(evt);
+      }
 
+      function pressDir(dir) {
+        if (activeDir.has(dir)) return;
+        activeDir.add(dir);
+        keyEvent('keydown', DIR_KEYS[dir]);
+      }
 
-// --- GESTIÓN DE LA UI Y PERSISTENCIA ---
+      function releaseDir(dir) {
+        if (!activeDir.has(dir)) return;
+        activeDir.delete(dir);
+        keyEvent('keyup', DIR_KEYS[dir]);
+      }
 
-/**
- * Actualiza el saldo en la interfaz.
- */
-function updateUI() {
-    SALDO_DOM.textContent = gameState.saldo;
-    // Esto se podría expandir para actualizar los precios de la tienda, etc.
-}
+      function releaseAllDirs() {
+        [...activeDir].forEach(releaseDir);
+      }
 
-/**
- * Guarda el estado del juego en el navegador.
- */
-function saveGameState() {
-    localStorage.setItem('maquinitaGameState', JSON.stringify(gameState));
-}
+      // --- Botón de acción ---
+      const fireBtn = document.getElementById('fire');
+      let firing = false;
+      const fireDown = () => {
+        if (firing) return;
+        firing = true;
+        fireBtn.classList.add('active');
+        keyEvent('keydown', FIRE_KEY);
+      };
+      const fireUp = () => {
+        if (!firing) return;
+        firing = false;
+        fireBtn.classList.remove('active');
+        keyEvent('keyup', FIRE_KEY);
+      };
 
-/**
- * Carga el estado del juego.
- */
-function loadGameState() {
-    const savedState = localStorage.getItem('maquinitaGameState');
-    if (savedState) {
-        gameState = JSON.parse(savedState);
-        // Asegurarse de que el saldo esté en número
-        gameState.saldo = Number(gameState.saldo); 
-    }
-}
+      ['pointerdown', 'pointercancel', 'pointerup', 'pointerleave'].forEach((ev) => {
+        fireBtn.addEventListener(ev, (e) => {
+          e.preventDefault();
+          if (ev === 'pointerdown') fireDown();
+          else fireUp();
+        });
+      });
 
+      // --- Palanca virtual analógica simple ---
+      const dpad = document.getElementById('dpad');
+      const stick = document.getElementById('stick');
+      let pointerId = null;
+      const RADIUS = 44;
 
-// --- INICIALIZACIÓN DEL JUEGO ---
+      function evalDirection(x, y) {
+        const threshold = 14;
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadGameState(); // Cargar datos guardados
-    updateUI();      // Actualizar la interfaz
-    calculateIdleMoney(); // Calcular lo ganado mientras estuvo ausente
+        if (y < -threshold) pressDir('up'); else releaseDir('up');
+        if (y > threshold) pressDir('down'); else releaseDir('down');
+        if (x < -threshold) pressDir('left'); else releaseDir('left');
+        if (x > threshold) pressDir('right'); else releaseDir('right');
+      }
 
-    // Asignar Eventos
-    SPIN_BUTTON.addEventListener('click', spin);
-    CLAIM_BUTTON.addEventListener('click', claimIdleMoney);
+      function moveStick(clientX, clientY) {
+        const rect = dpad.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
 
-    // Actualización de dinero Idle cada 10 segundos (para la sensación de progreso)
-    setInterval(calculateIdleMoney, 10000); 
-});
+        let x = clientX - cx;
+        let y = clientY - cy;
 
-// ¡Falta la lógica para comprar en la Tiendita! Eso sería el siguiente paso.
+        const mag = Math.hypot(x, y) || 1;
+        if (mag > RADIUS) {
+          x = (x / mag) * RADIUS;
+          y = (y / mag) * RADIUS;
+        }
+
+        stick.style.transform = `translate(${x}px, ${y}px)`;
+        evalDirection(x, y);
+      }
+
+      function resetStick() {
+        stick.style.transform = 'translate(0, 0)';
+        releaseAllDirs();
+      }
+
+      dpad.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        pointerId = e.pointerId;
+        dpad.setPointerCapture(pointerId);
+        moveStick(e.clientX, e.clientY);
+      });
+
+      dpad.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== pointerId) return;
+        e.preventDefault();
+        moveStick(e.clientX, e.clientY);
+      });
+
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => {
+        dpad.addEventListener(ev, (e) => {
+          if (e.pointerId !== pointerId) return;
+          e.preventDefault();
+          pointerId = null;
+          resetStick();
+        });
+      });
+
+      window.addEventListener('blur', () => {
+        resetStick();
+        fireUp();
+      });
+    </script>
+  </body>
+</html>
