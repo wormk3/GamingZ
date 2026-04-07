@@ -1,6 +1,6 @@
 # GamingZ · Ataxx Touch Web
 
-Página web para ejecutar **Ataxx (arcade)** desde `ataxx.zip` usando **EmulatorJS** y una capa táctil transparente sobre el juego.
+Página web para ejecutar **Ataxx (arcade)** desde `ataxx.zip` usando **EmulatorJS** y una capa táctil transparente sobre el juego. Incluye selector de core (`arcade`/`mame2003`) para compatibilidad.
 
 ## Ejecutar localmente
 
@@ -15,6 +15,13 @@ Abrir en navegador:
 - `http://localhost:8080/`
 
 > Nota: el juego carga `ataxx.zip` desde el mismo directorio.
+
+
+## Nota importante de ROMSET
+
+Si aparece `Romset is unknown`, el archivo `ataxx.zip` no coincide con el set esperado por el core activo.
+Prueba con el selector de core en pantalla: `arcade (FBNeo)` o `mame2003`.
+Si uno falla, cambia al otro y recarga. Para `mame2003` se espera romset compatible con MAME 0.78.
 
 ## Controles touch (sin palanca ni botón visible)
 

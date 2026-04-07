@@ -45,6 +45,24 @@
         font-size: 0.95rem;
       }
 
+
+      .core-toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin: 0 0 12px;
+        font-size: 0.9rem;
+      }
+
+      .core-toolbar select,
+      .core-toolbar button {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        padding: 6px 10px;
+      }
+
       .game-wrap {
         position: relative;
         width: 100%;
@@ -117,7 +135,16 @@
   <body>
     <main class="app">
       <h1>Ataxx (Arcade) · Control Touch tipo puntero</h1>
-      <p class="hint">Toca sobre la pantalla para mover el puntero. Sin palancas ni botones visibles.</p>
+      <p class="hint">Toca sobre la pantalla para mover el puntero. Si no carga, cambia de core abajo y recarga.</p>
+
+      <div class="core-toolbar">
+        <label for="coreSelect">Core:</label>
+        <select id="coreSelect">
+          <option value="arcade">arcade (FBNeo)</option>
+          <option value="mame2003">mame2003</option>
+        </select>
+        <button id="reloadCore" type="button">Aplicar y recargar</button>
+      </div>
 
       <section class="game-wrap" aria-label="Emulador Ataxx">
         <section id="game"></section>
@@ -134,17 +161,17 @@
     </main>
 
     <script>
+      const coreFromUrl = new URLSearchParams(window.location.search).get('core');
+      const savedCore = localStorage.getItem('ataxx_core');
+      const selectedCore = coreFromUrl || savedCore || 'arcade';
+
       window.EJS_player = '#game';
-      window.EJS_core = 'arcade';
+      window.EJS_core = selectedCore;
       window.EJS_gameName = 'Ataxx';
       window.EJS_gameUrl = 'ataxx.zip';
       window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
       window.EJS_startOnLoaded = true;
       window.EJS_onGameStart = () => {
-      // Ocultamos los controles touch de EmulatorJS para usar los nuestros.
-      window.EJS_startOnLoaded = true;
-      window.EJS_onGameStart = () => {
-        // Intenta enfocarlo para aceptar teclas virtuales.
         setTimeout(() => window.focus(), 200);
       };
     </script>
@@ -152,7 +179,6 @@
 
     <script>
       const FIRE_KEY = 'Control';
-      const FIRE_KEY = 'Control'; // Botón 1 arcade (habitual en mapeos web)
       const DIR_KEYS = {
         up: 'ArrowUp',
         down: 'ArrowDown',
@@ -162,6 +188,16 @@
 
       const layer = document.getElementById('touchLayer');
       const cursorEl = document.getElementById('touchCursor');
+      const coreSelect = document.getElementById('coreSelect');
+      const reloadCore = document.getElementById('reloadCore');
+
+      coreSelect.value = window.EJS_core;
+      reloadCore.addEventListener('click', () => {
+        localStorage.setItem('ataxx_core', coreSelect.value);
+        const url = new URL(window.location.href);
+        url.searchParams.set('core', coreSelect.value);
+        window.location.href = url.toString();
+      });
 
       const activeDir = new Set();
       let pointerId = null;
@@ -169,7 +205,6 @@
 
       const cursorPos = { x: 0.5, y: 0.5 };
       const targetPos = { x: 0.5, y: 0.5 };
-      const activeDir = new Set();
 
       function keyEvent(type, key) {
         const evt = new KeyboardEvent(type, {
