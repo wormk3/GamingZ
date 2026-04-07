@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+
+if [[ "$branch" == "HEAD" ]]; then
+  echo "[auto-push] Detected detached HEAD. Skipping push."
+  exit 0
+fi
+
+if ! git remote get-url origin >/dev/null 2>&1; then
+  echo "[auto-push] No 'origin' remote configured. Skipping push."
+  exit 0
+fi
+
+echo "[auto-push] Pushing commit to origin/$branch..."
+git push origin "$branch"
