@@ -141,6 +141,10 @@
       window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
       window.EJS_startOnLoaded = true;
       window.EJS_onGameStart = () => {
+      // Ocultamos los controles touch de EmulatorJS para usar los nuestros.
+      window.EJS_startOnLoaded = true;
+      window.EJS_onGameStart = () => {
+        // Intenta enfocarlo para aceptar teclas virtuales.
         setTimeout(() => window.focus(), 200);
       };
     </script>
@@ -148,6 +152,7 @@
 
     <script>
       const FIRE_KEY = 'Control';
+      const FIRE_KEY = 'Control'; // Botón 1 arcade (habitual en mapeos web)
       const DIR_KEYS = {
         up: 'ArrowUp',
         down: 'ArrowDown',
@@ -164,6 +169,7 @@
 
       const cursorPos = { x: 0.5, y: 0.5 };
       const targetPos = { x: 0.5, y: 0.5 };
+      const activeDir = new Set();
 
       function keyEvent(type, key) {
         const evt = new KeyboardEvent(type, {
