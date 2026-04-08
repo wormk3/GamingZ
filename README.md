@@ -1,6 +1,6 @@
 # GamingZ · Ataxx Touch Web
 
-Página web para ejecutar **Ataxx (arcade)** desde `ataxx.zip` usando **EmulatorJS** y una capa táctil transparente sobre el juego. Incluye selector de core (`arcade`/`mame2003`) para compatibilidad.
+Página web para ejecutar **Ataxx (arcade)** desde `ataxx.zip` usando **EmulatorJS** y una capa táctil transparente sobre el juego. Incluye selector de core (`arcade`/`mame2003`) para compatibilidad; por defecto arranca en `mame2003` para mejorar la lectura de `ataxx.zip`.
 
 ## Ejecutar localmente
 

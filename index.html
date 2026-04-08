@@ -161,9 +161,8 @@
     </main>
 
     <script>
-      const coreFromUrl = new URLSearchParams(window.location.search).get('core');
       const savedCore = localStorage.getItem('ataxx_core');
-      const selectedCore = coreFromUrl || savedCore || 'arcade';
+      const selectedCore = savedCore || 'mame2003';
 
       window.EJS_player = '#game';
       window.EJS_core = selectedCore;
